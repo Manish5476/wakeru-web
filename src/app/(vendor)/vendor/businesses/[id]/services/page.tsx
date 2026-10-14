@@ -6,10 +6,12 @@ import { BusinessService } from '@/types/api';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/design-system/components/Table';
 import { Button } from '@/design-system/components/Button';
 import { Input } from '@/design-system/components/Input';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import { BusinessNavTabs } from '@/features/vendor/BusinessNavTabs';
 
 export default function ServicesPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
   const [services, setServices] = useState<BusinessService[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,10 +87,17 @@ export default function ServicesPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Services</h1>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={() => router.push('/vendor')}>
+            &larr; Businesses
+          </Button>
+          <h1 className="text-3xl font-bold text-[var(--color-wakeru-text-primary)]">Services & Pricing Catalogue</h1>
+        </div>
       </div>
+
+      <BusinessNavTabs businessId={id} activeTab="services" />
 
       {error && (
         <div className="p-3 bg-red-50 text-red-700 rounded-md border border-red-200">

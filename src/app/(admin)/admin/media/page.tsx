@@ -15,7 +15,8 @@ export default function MediaModerationPage() {
     async function loadMedia() {
       try {
         const res = await adminApi.getMediaQueue();
-        setMediaItems((res as any) || []);
+        const items = (res as any)?.data || (Array.isArray(res) ? res : []);
+        setMediaItems(items);
       } catch (err) {
         console.error("Failed to load media queue", err);
       } finally {
