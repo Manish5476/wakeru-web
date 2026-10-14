@@ -1,4 +1,27 @@
-export type BusinessCategory = 'STAY' | 'DINING' | 'TRANSPORT' | 'RENTAL' | 'ACTIVITY';
+export type BusinessCategory =
+  | 'STAY'
+  | 'DINING'
+  | 'TRANSPORT'
+  | 'RENTAL'
+  | 'ACTIVITY'
+  | 'hotel'
+  | 'resort'
+  | 'homestay'
+  | 'hostel'
+  | 'restaurant'
+  | 'cafe'
+  | 'bakery'
+  | 'cab'
+  | 'taxi'
+  | 'bike_rental'
+  | 'car_rental'
+  | 'tour_guide'
+  | 'tour_operator'
+  | 'activity_provider'
+  | 'shop'
+  | 'travel_agent'
+  | 'photographer'
+  | (string & {});
 export type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED' | 'REVOKED';
 
 export interface Business {
@@ -48,10 +71,38 @@ export interface BusinessOffer {
 export interface BusinessService {
   id: string;
   businessId: string;
+  name?: string;
+  serviceName?: string;
+  serviceType?: string;
+  description?: string;
+  priceMinor?: number;
+  basePriceMinor?: number;
+  currency?: string;
+  priceUnit?: string;
+  isAvailable?: boolean;
+  maxCapacity?: number;
+}
+
+export interface MasterCategory {
+  id: string;
+  slug: string;
   name: string;
   description?: string;
-  priceMinor: number;
-  currency: string;
+  icon?: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface MasterItem {
+  id: string;
+  categoryId?: string;
+  code: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+  metadata?: Record<string, any>;
 }
 
 export interface BusinessReview {

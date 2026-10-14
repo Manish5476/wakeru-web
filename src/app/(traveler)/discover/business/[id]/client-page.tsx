@@ -89,10 +89,10 @@ export default function BusinessDetailClientPage() {
                 <TableBody>
                   {services.map(s => (
                     <TableRow key={s.id}>
-                      <TableCell className="font-medium">{s.name}</TableCell>
+                      <TableCell className="font-medium">{s.serviceName || s.name}</TableCell>
                       <TableCell>{s.description || '-'}</TableCell>
                       <TableCell className="text-right font-semibold">
-                        {(s.priceMinor / 100).toFixed(2)} {s.currency}
+                        ₹{(((s.basePriceMinor ?? s.priceMinor ?? 0) / 100)).toFixed(2)}
                       </TableCell>
                     </TableRow>
                   ))}

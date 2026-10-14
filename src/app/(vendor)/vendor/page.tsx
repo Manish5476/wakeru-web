@@ -31,7 +31,9 @@ export default function VendorDashboard() {
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-[var(--color-wakeru-text-primary)]">My Businesses</h1>
-        <Button variant="primary">Add New Business</Button>
+        <Link href="/vendor/businesses/create">
+          <Button variant="primary">Add New Business</Button>
+        </Link>
       </div>
 
       <Card>
