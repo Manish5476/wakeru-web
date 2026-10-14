@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAMID1234.com.tripsplit.app",
+        "paths": [
+          "/trip/*",
+          "/expense/*",
+          "/join/*"
+        ]
+      }
+    ]
+  }
+}
