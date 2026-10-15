@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/design-system/compon
 import { Input } from '@/design-system/components/Input';
 import { Button } from '@/design-system/components/Button';
 import { Badge } from '@/design-system/components/Badge';
+import { VenueLocationMapCard } from '@/design-system/components/VenueLocationMapCard';
 import { BusinessNavTabs } from '@/features/vendor/BusinessNavTabs';
 
 export default function BusinessDetailPage() {
@@ -60,6 +61,25 @@ export default function BusinessDetailPage() {
       });
   }, [id]);
 
+  const handleUseCurrentLocation = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLatitude(pos.coords.latitude.toFixed(6));
+        setLongitude(pos.coords.longitude.toFixed(6));
+        setSuccessMsg('GPS coordinates captured from your current location! Click "Save Changes" to apply.');
+      },
+      (err) => {
+        console.warn('Geolocation error', err);
+        setErrorMsg('Could not detect location: ' + err.message);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!businessName.trim() || !city.trim()) {
@@ -105,18 +125,21 @@ export default function BusinessDetailPage() {
     return <div className="p-8 text-center text-red-500">Business not found.</div>;
   }
 
+  const parsedLat = latitude ? parseFloat(latitude) : business.latitude;
+  const parsedLng = longitude ? parseFloat(longitude) : business.longitude;
+
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" onClick={() => router.push('/vendor')}>
             &larr; Businesses
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-[var(--color-wakeru-text-primary)]">
+            <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-wakeru-text-primary)]">
               {business.businessName}
             </h1>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <Badge variant="default" className="capitalize">
                 {business.category}
               </Badge>
@@ -160,7 +183,7 @@ export default function BusinessDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Business Information</CardTitle>
+          <CardTitle>Business Information & Contact Details</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSave} className="space-y-6">
@@ -228,23 +251,37 @@ export default function BusinessDetailPage() {
                 />
               </div>
 
-              <Input
-                label="GPS Latitude"
-                type="number"
-                step="any"
-                value={latitude}
-                onChange={(e) => setLatitude(e.target.value)}
-                placeholder="e.g. 15.2993"
-              />
+              <div>
+                <Input
+                  label="GPS Latitude"
+                  type="number"
+                  step="any"
+                  value={latitude}
+                  onChange={(e) => setLatitude(e.target.value)}
+                  placeholder="e.g. 15.2993"
+                />
+              </div>
 
-              <Input
-                label="GPS Longitude"
-                type="number"
-                step="any"
-                value={longitude}
-                onChange={(e) => setLongitude(e.target.value)}
-                placeholder="e.g. 74.1240"
-              />
+              <div>
+                <Input
+                  label="GPS Longitude"
+                  type="number"
+                  step="any"
+                  value={longitude}
+                  onChange={(e) => setLongitude(e.target.value)}
+                  placeholder="e.g. 74.1240"
+                />
+              </div>
+
+              <div className="md:col-span-2 flex justify-start">
+                <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200/60 font-semibold hover:bg-emerald-100 transition-colors flex items-center gap-1.5"
+                >
+                  📍 Capture Current Device GPS
+                </button>
+              </div>
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">About the Business</label>
@@ -269,6 +306,31 @@ export default function BusinessDetailPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Live Map Preview Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Traveler Map & Pin Preview</CardTitle>
+          <p className="text-xs text-[var(--color-wakeru-text-secondary)]">
+            This is how your venue pin, category icon, and coordinates appear to travelers exploring on the discovery map.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <VenueLocationMapCard
+            venueName={businessName || business.businessName}
+            category={business.category}
+            address={address || business.address}
+            city={city || business.city}
+            country={country || business.country}
+            latitude={parsedLat}
+            longitude={parsedLng}
+            googleMapsUrl={googleMapsUrl || business.googleMapsUrl}
+            phone={phone || business.phone}
+            cardTitle="Live Venue Pin Preview"
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }
+

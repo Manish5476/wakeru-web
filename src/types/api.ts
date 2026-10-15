@@ -89,6 +89,10 @@ export interface BusinessService {
   priceUnit?: string;
   isAvailable?: boolean;
   maxCapacity?: number;
+  imageUrl?: string;
+  imageUrls?: string[];
+  facilities?: string[];
+  attributes?: Record<string, any>;
 }
 
 export interface MasterCategory {
@@ -135,13 +139,29 @@ export interface BookingRequest {
   serviceId?: string;
   bookingDate: string;
   createdAt: string;
+  businessName?: string;
+  serviceName?: string;
 }
 
 export interface Reservation {
   id: string;
   bookingRequestId: string;
+  bookingReference?: string;
+  businessId?: string;
+  businessName?: string;
+  businessAddress?: string;
+  businessCity?: string;
+  businessCountry?: string;
+  latitude?: number;
+  longitude?: number;
+  googleMapsUrl?: string;
+  phone?: string;
+  serviceName?: string;
+  priceMinor?: number;
+  currency?: string;
   status: 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
   vendorConfirmedAt: string;
+  bookingDate?: string;
 }
 
 export interface Vendor {
