@@ -56,11 +56,10 @@ export default function BusinessDetailClientPage() {
       }
       setServices((s as any).data || s);
       setReviews((r as any).data || r);
-      if (t?.trips) {
-        setMyTrips(t.trips);
-        if (t.trips.length > 0) {
-          setTargetTripId(t.trips[0]._id || t.trips[0].id || '');
-        }
+      const tripsList: ITrip[] = (t as any)?.data?.trips || (t as any)?.trips || [];
+      if (tripsList.length > 0) {
+        setMyTrips(tripsList);
+        setTargetTripId(tripsList[0]._id || tripsList[0].id || '');
       }
       setLoading(false);
     });
@@ -113,7 +112,8 @@ export default function BusinessDetailClientPage() {
     if (!targetTripId || !business) return;
     try {
       setAddingToTrip(true);
-      const { plan } = await tripsApi.getTravelPlan(targetTripId);
+      const planRes = await tripsApi.getTravelPlan(targetTripId);
+      const plan = (planRes as any)?.data?.plan || (planRes as any)?.plan || { itinerary: [] };
       const nextDayNum = plan.itinerary.length + 1;
 
       const newDay = {

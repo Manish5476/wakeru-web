@@ -44,7 +44,8 @@ export interface IExpense {
   id?: string;
   tripId: string;
   stopId?: string;
-  title: string;
+  title?: string;
+  description?: string;
   amount: number;
   currency: string;
   category: ExpenseCategory;
@@ -57,6 +58,14 @@ export interface IExpense {
   lineItems?: IExpenseLineItem[];
   receiptUrl?: string;
   notes?: string;
+  isSettled?: boolean;
+  comments?: Array<{
+    _id: string;
+    userId?: string;
+    userName?: string;
+    text: string;
+    createdAt: string;
+  }>;
   exchangeRate?: number;
   convertedAmountBase?: number;
   createdAt: string;

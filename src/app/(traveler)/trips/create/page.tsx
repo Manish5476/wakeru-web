@@ -117,7 +117,7 @@ export default function CreateTripWizardPage() {
         status: 'planning',
       });
 
-      const newTripId = res.trip._id || res.trip.id || '';
+      const newTripId = (res as any)?.data?.trip?._id || (res as any)?.data?.trip?.id || (res as any)?.trip?._id || (res as any)?.trip?.id || '';
       router.push(`/trips/${newTripId}`);
     } catch (err) {
       console.error('Failed to create trip:', err);

@@ -3,12 +3,13 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ITrip, TripStatus } from '@/types/trip.types';
+import { ITrip } from '@/types/trip.types';
 import { tripsApi } from '@/api/trips';
-import { formatCurrency, formatDateRange, getInitials } from '@/lib/formatters';
 import { AppIcon } from '@/design-system/components/AppIcon';
 import { Button } from '@/design-system/components/Button';
-import { Badge } from '@/design-system/components/Badge';
+import { StatCard } from '@/design-system/components/StatCard';
+import { TripCard } from '@/design-system/components/TripCard';
+import { GlassCard } from '@/design-system/components/GlassCard';
 import { Modal } from '@/design-system/components/Modal';
 
 export default function TripsPortfolioPage() {
@@ -28,7 +29,8 @@ export default function TripsPortfolioPage() {
     try {
       setLoading(true);
       const res = await tripsApi.getMyTrips();
-      setTrips(res.trips || []);
+      const tripsData = (res as any)?.data?.trips || (res as any)?.trips || [];
+      setTrips(tripsData);
     } catch (err) {
       console.error('Failed to load trips:', err);
     } finally {
@@ -61,27 +63,27 @@ export default function TripsPortfolioPage() {
   const totalBudget = trips.reduce((acc, t) => acc + (t.budget || 0), 0);
   const totalSpent = trips.reduce((acc, t) => acc + (t.spentBase || 0), 0);
   const activeCount = trips.filter(t => t.status === 'active').length;
-  const totalTravelers = new Set(trips.flatMap(t => t.members.map(m => m.userId))).size;
+  const totalTravelers = new Set(trips.flatMap(t => (t.members || []).map(m => m.userId))).size;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+    <div className="space-y-8">
       {/* Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-wakeru-primary)] mb-1">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">
             <span>🏖️ Real-time Travel &amp; Expense Hub</span>
           </div>
-          <h1 className="text-3xl font-extrabold text-[var(--color-wakeru-text-primary)] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--color-wakeru-text-primary)] tracking-tight">
             My Trip Portfolio
           </h1>
-          <p className="text-sm text-[var(--color-wakeru-text-secondary)] mt-1">
-            Seamlessly split group expenses, minimize bank transfers, and coordinate day-by-day itineraries.
+          <p className="text-xs sm:text-sm text-[var(--color-wakeru-text-secondary)] mt-1">
+            Split group accommodations, minimize peer-to-peer transfers, and synchronize collaborative stops.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <Button
-            variant="outline"
+            variant="secondary"
             onClick={() => {
               setJoinError('');
               setInviteCodeInput('');
@@ -94,7 +96,7 @@ export default function TripsPortfolioPage() {
           </Button>
 
           <Link href="/trips/create">
-            <Button variant="primary" className="flex items-center gap-2 shadow-md">
+            <Button variant="gold" className="flex items-center gap-2 shadow-md">
               <AppIcon name="plus" size={16} />
               <span>Create New Trip</span>
             </Button>
@@ -102,71 +104,55 @@ export default function TripsPortfolioPage() {
         </div>
       </div>
 
-      {/* Metrics Banner */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="p-5 rounded-[var(--radius-card)] bg-[var(--color-wakeru-surface)] border border-[var(--color-wakeru-border)] shadow-xs">
-          <div className="flex items-center justify-between text-[var(--color-wakeru-text-tertiary)] mb-2">
-            <span className="text-xs font-medium uppercase tracking-wider">Active Trips</span>
-            <AppIcon name="plane" size={18} className="text-[var(--color-wakeru-primary)]" />
-          </div>
-          <div className="text-2xl font-bold text-[var(--color-wakeru-text-primary)]">
-            {activeCount}
-          </div>
-          <div className="text-xs text-[var(--color-wakeru-text-secondary)] mt-1">
-            {trips.length} total expeditions
-          </div>
-        </div>
+      {/* Metrics Banner with StatCards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard
+          title="Active Journeys"
+          amount={activeCount}
+          currency=""
+          variant="default"
+          subtitle={`${trips.length} total recorded`}
+          icon={<AppIcon name="plane" size={18} />}
+        />
 
-        <div className="p-5 rounded-[var(--radius-card)] bg-[var(--color-wakeru-surface)] border border-[var(--color-wakeru-border)] shadow-xs">
-          <div className="flex items-center justify-between text-[var(--color-wakeru-text-tertiary)] mb-2">
-            <span className="text-xs font-medium uppercase tracking-wider">Total Group Spend</span>
-            <AppIcon name="receipt" size={18} className="text-amber-500" />
-          </div>
-          <div className="text-2xl font-bold text-[var(--color-wakeru-text-primary)]">
-            {formatCurrency(totalSpent, 'INR')}
-          </div>
-          <div className="text-xs text-[var(--color-wakeru-text-secondary)] mt-1">
-            Budget: {formatCurrency(totalBudget, 'INR')}
-          </div>
-        </div>
+        <StatCard
+          title="Total Group Spend"
+          amount={totalSpent}
+          currency="INR"
+          variant="warning"
+          subtitle={`Budget cap: ₹${totalBudget.toLocaleString()}`}
+          icon={<AppIcon name="receipt" size={18} />}
+        />
 
-        <div className="p-5 rounded-[var(--radius-card)] bg-[var(--color-wakeru-surface)] border border-[var(--color-wakeru-border)] shadow-xs">
-          <div className="flex items-center justify-between text-[var(--color-wakeru-text-tertiary)] mb-2">
-            <span className="text-xs font-medium uppercase tracking-wider">Group Companions</span>
-            <AppIcon name="users" size={18} className="text-emerald-500" />
-          </div>
-          <div className="text-2xl font-bold text-[var(--color-wakeru-text-primary)]">
-            {totalTravelers}
-          </div>
-          <div className="text-xs text-[var(--color-wakeru-text-secondary)] mt-1">
-            Across your trips
-          </div>
-        </div>
+        <StatCard
+          title="Companions"
+          amount={totalTravelers}
+          currency=""
+          variant="success"
+          subtitle="Across your expeditions"
+          icon={<AppIcon name="users" size={18} />}
+        />
 
-        <div className="p-5 rounded-[var(--radius-card)] bg-[var(--color-wakeru-surface)] border border-[var(--color-wakeru-border)] shadow-xs">
-          <div className="flex items-center justify-between text-[var(--color-wakeru-text-tertiary)] mb-2">
-            <span className="text-xs font-medium uppercase tracking-wider">Net Settlement</span>
-            <AppIcon name="wallet" size={18} className="text-blue-500" />
-          </div>
-          <div className="text-2xl font-bold text-emerald-600">
-            +₹4,200
-          </div>
-          <div className="text-xs text-[var(--color-wakeru-text-secondary)] mt-1">
-            You are owed across all trips
-          </div>
-        </div>
+        <StatCard
+          title="Settlements"
+          amount={4200}
+          currency="INR"
+          variant="success"
+          subtitle="Net receivable across trips"
+          icon={<AppIcon name="wallet" size={18} />}
+        />
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 border-b border-[var(--color-wakeru-border)] pb-3 mb-6">
+      {/* Filter Tabs (Frosted Pills) */}
+      <div className="flex items-center gap-2 border-b border-black/5 dark:border-white/10 pb-4">
         {(['all', 'active', 'planning', 'completed'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setFilter(tab)}
-            className={`px-4 py-2 text-xs sm:text-sm font-semibold rounded-[var(--radius-control)] transition-all capitalize ${
+            className={`px-4 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 capitalize cursor-pointer ${
               filter === tab
-                ? 'bg-[var(--color-wakeru-primary)] text-white shadow-xs'
-                : 'text-[var(--color-wakeru-text-secondary)] hover:text-[var(--color-wakeru-text-primary)] hover:bg-[var(--color-wakeru-surface-muted)]'
+                ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-md'
+                : 'text-[var(--color-wakeru-text-secondary)] hover:text-[var(--color-wakeru-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'
             }`}
           >
             {tab === 'all' ? 'All Trips' : tab}
@@ -180,13 +166,13 @@ export default function TripsPortfolioPage() {
           {[1, 2, 3].map(i => (
             <div
               key={i}
-              className="h-72 rounded-[var(--radius-card)] bg-[var(--color-wakeru-surface-muted)] animate-pulse"
+              className="h-80 rounded-2xl bg-black/5 dark:bg-white/5 animate-pulse"
             />
           ))}
         </div>
       ) : filteredTrips.length === 0 ? (
-        <div className="text-center py-16 px-4 bg-[var(--color-wakeru-surface)] border border-[var(--color-wakeru-border)] rounded-[var(--radius-card)]">
-          <div className="w-16 h-16 rounded-full bg-[var(--color-wakeru-surface-muted)] flex items-center justify-center mx-auto mb-4 text-2xl">
+        <GlassCard variant="soft" padding="xl" className="text-center py-16">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto mb-4 text-3xl">
             ✈️
           </div>
           <h3 className="text-lg font-bold text-[var(--color-wakeru-text-primary)] mb-1">
@@ -196,175 +182,75 @@ export default function TripsPortfolioPage() {
             Ready to embark on an adventure? Plan a getaway with friends or join an existing trip with an invite code.
           </p>
           <Link href="/trips/create">
-            <Button variant="primary">Create Your First Trip</Button>
+            <Button variant="gold">Create Your First Trip</Button>
           </Link>
-        </div>
+        </GlassCard>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTrips.map(trip => {
-            const tripId = trip._id || trip.id || '';
-            const spent = trip.spentBase || 0;
-            const budget = trip.budget || 1;
-            const pct = Math.min(100, Math.round((spent / budget) * 100));
-            const isOverBudget = spent > budget;
-
-            return (
-              <Link
-                key={tripId}
-                href={`/trips/${tripId}`}
-                className="group flex flex-col rounded-[var(--radius-card)] bg-[var(--color-wakeru-surface)] border border-[var(--color-wakeru-border)] overflow-hidden shadow-xs hover:shadow-xl hover:border-[var(--color-wakeru-primary)] transition-all duration-300"
-              >
-                {/* Image Cover */}
-                <div className="relative h-44 w-full bg-slate-900 overflow-hidden">
-                  <img
-                    src={trip.coverImage || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80'}
-                    alt={trip.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-
-                  {/* Badges on Cover */}
-                  <div className="absolute top-3 left-3 flex items-center gap-2">
-                    <span className="text-xl p-1 bg-white/20 backdrop-blur-md rounded-lg shadow-xs">
-                      {trip.emoji || '🌴'}
-                    </span>
-                    <span
-                      className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full backdrop-blur-md ${
-                        trip.status === 'active'
-                          ? 'bg-emerald-500/90 text-white'
-                          : trip.status === 'planning'
-                          ? 'bg-amber-500/90 text-white'
-                          : 'bg-slate-700/90 text-white'
-                      }`}
-                    >
-                      {trip.status}
-                    </span>
-                  </div>
-
-                  <div className="absolute top-3 right-3 text-xs font-mono font-bold bg-black/60 text-white backdrop-blur-md px-2.5 py-1 rounded-md">
-                    #{trip.inviteCode}
-                  </div>
-
-                  {/* Destination on bottom of cover */}
-                  <div className="absolute bottom-3 left-4 right-4 text-white">
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-200">
-                      <AppIcon name="map-pin" size={13} className="text-[var(--color-wakeru-primary)]" />
-                      <span>{trip.destination}</span>
-                    </div>
-                    <h2 className="text-lg font-bold truncate mt-0.5 drop-shadow-sm">
-                      {trip.title}
-                    </h2>
-                  </div>
-                </div>
-
-                {/* Card Body */}
-                <div className="p-5 flex-1 flex flex-col justify-between">
-                  {/* Dates & Stops */}
-                  <div>
-                    <div className="flex items-center gap-2 text-xs text-[var(--color-wakeru-text-secondary)] mb-3">
-                      <AppIcon name="calendar" size={14} />
-                      <span>{formatDateRange(trip.startDate, trip.endDate)}</span>
-                    </div>
-
-                    {trip.description && (
-                      <p className="text-xs text-[var(--color-wakeru-text-secondary)] line-clamp-2 mb-4">
-                        {trip.description}
-                      </p>
-                    )}
-
-                    {/* Budget Progress */}
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between text-xs mb-1.5 font-medium">
-                        <span className="text-[var(--color-wakeru-text-secondary)]">Group Spend</span>
-                        <span className={isOverBudget ? 'text-red-500 font-bold' : 'text-[var(--color-wakeru-text-primary)]'}>
-                          {formatCurrency(spent, trip.currency)} / {formatCurrency(trip.budget || 0, trip.currency)}
-                        </span>
-                      </div>
-                      <div className="w-full bg-[var(--color-wakeru-surface-muted)] h-2 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full transition-all duration-500 ${
-                            isOverBudget
-                              ? 'bg-red-500'
-                              : pct > 80
-                              ? 'bg-amber-500'
-                              : 'bg-[var(--color-wakeru-primary)]'
-                          }`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Footer: Companions & Arrow */}
-                  <div className="flex items-center justify-between pt-3 border-t border-[var(--color-wakeru-border)]">
-                    <div className="flex items-center -space-x-2 overflow-hidden">
-                      {trip.members.slice(0, 4).map((member, idx) => (
-                        <div
-                          key={member.id || idx}
-                          title={member.name}
-                          className="inline-flex items-center justify-center w-7 h-7 rounded-full text-[10px] font-bold text-white bg-[var(--color-wakeru-primary)] ring-2 ring-[var(--color-wakeru-surface)] shadow-xs"
-                        >
-                          {getInitials(member.name)}
-                        </div>
-                      ))}
-                      {trip.members.length > 4 && (
-                        <div className="inline-flex items-center justify-center w-7 h-7 rounded-full text-[10px] font-bold text-[var(--color-wakeru-text-secondary)] bg-[var(--color-wakeru-surface-muted)] ring-2 ring-[var(--color-wakeru-surface)]">
-                          +{trip.members.length - 4}
-                        </div>
-                      )}
-                    </div>
-
-                    <span className="text-xs font-semibold text-[var(--color-wakeru-primary)] group-hover:translate-x-1 transition-transform flex items-center gap-1">
-                      <span>View Trip Hub</span>
-                      <AppIcon name="chevron-right" size={14} />
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+          {filteredTrips.map(trip => (
+            <TripCard
+              key={trip._id || trip.id}
+              trip={{
+                id: trip._id || trip.id,
+                title: trip.name || trip.title,
+                coverImage: trip.coverImage,
+                startDate: trip.startDate,
+                endDate: trip.endDate,
+                status: trip.status,
+                baseCurrency: trip.currency || 'INR',
+                totalBudget: trip.budget,
+                totalSpentBase: trip.spentBase,
+                members: trip.members?.map(m => ({
+                  userId: m.userId,
+                  displayName: m.name,
+                  photoURL: m.avatar,
+                })),
+              }}
+            />
+          ))}
         </div>
       )}
 
-      {/* Join Trip with Code Modal */}
-      <Modal
-        isOpen={joinModalOpen}
-        onClose={() => setJoinModalOpen(false)}
-        title="Join an Existing Trip"
-        description="Enter the 6-character invite code shared by the trip organizer."
-        maxWidth="sm"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setJoinModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={handleJoinTrip}>
-              Join Trip
-            </Button>
-          </>
-        }
-      >
-        <form onSubmit={handleJoinTrip} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-wakeru-text-secondary)] mb-2">
-              Trip Invite Code
-            </label>
-            <input
-              type="text"
-              maxLength={10}
-              placeholder="e.g. GOA2026"
-              value={inviteCodeInput}
-              onChange={e => setInviteCodeInput(e.target.value)}
-              className="w-full text-center text-xl tracking-widest uppercase font-mono font-bold px-4 py-3 bg-[var(--color-wakeru-surface-muted)] border border-[var(--color-wakeru-border-strong)] rounded-[var(--radius-control)] focus:outline-none focus:ring-2 focus:ring-[var(--color-wakeru-primary)]"
-              autoFocus
-            />
-            {joinError && <p className="text-xs text-red-500 mt-2">{joinError}</p>}
-          </div>
-          <div className="text-xs text-[var(--color-wakeru-text-secondary)] bg-[var(--color-wakeru-surface-muted)] p-3 rounded-md">
-            💡 Joining adds this trip to your portfolio and allows you to view balances, add expenses, and settle debts instantly.
-          </div>
-        </form>
-      </Modal>
+      {/* Join Trip Modal */}
+      {joinModalOpen && (
+        <Modal
+          isOpen={joinModalOpen}
+          onClose={() => setJoinModalOpen(false)}
+          title="Join a Trip with Code"
+        >
+          <form onSubmit={handleJoinTrip} className="space-y-4">
+            <p className="text-xs text-[var(--color-wakeru-text-secondary)]">
+              Ask your trip organizer for the 6-character code (e.g. <code>GOA123</code>) to join the expedition and split bills.
+            </p>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-[var(--color-wakeru-text-tertiary)] mb-1.5">
+                Trip Invite Code
+              </label>
+              <input
+                type="text"
+                maxLength={8}
+                value={inviteCodeInput}
+                onChange={e => setInviteCodeInput(e.target.value.toUpperCase())}
+                placeholder="e.g. GOA26"
+                className="w-full px-4 py-3 rounded-xl border border-black/10 dark:border-white/10 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md text-center font-mono text-xl tracking-widest font-black uppercase text-[var(--color-wakeru-text-primary)] focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+              {joinError && (
+                <p className="text-xs text-rose-500 font-semibold mt-1.5">{joinError}</p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" size="sm" type="button" onClick={() => setJoinModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="gold" size="sm" type="submit">
+                Join Trip
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

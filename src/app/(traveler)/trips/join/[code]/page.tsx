@@ -32,8 +32,18 @@ export default function JoinTripPage({ params }: { params: Promise<{ code: strin
     try {
       setLoading(true);
       setError('');
+      try {
+        const previewRes = await tripsApi.getTripPreview(code);
+        const previewTrip = (previewRes as any)?.data?.trip || (previewRes as any)?.trip;
+        if (previewTrip) {
+          setTrip(previewTrip);
+          return;
+        }
+      } catch {}
+
       const res = await tripsApi.getMyTrips();
-      const match = res.trips.find(t => t.inviteCode?.toUpperCase() === code);
+      const tripsList: ITrip[] = (res as any)?.data?.trips || (res as any)?.trips || [];
+      const match = tripsList.find((t: ITrip) => t.inviteCode?.toUpperCase() === code);
       if (match) {
         setTrip(match);
       } else {
@@ -61,12 +71,11 @@ export default function JoinTripPage({ params }: { params: Promise<{ code: strin
       if (!tripId) {
         throw new Error('Trip ID is missing');
       }
-      await tripsApi.addMember(tripId, {
-        name: name.trim(),
-        email: email.trim() || undefined,
-        upiId: upiId.trim() || undefined,
-        role: 'member',
-      });
+      try {
+        await tripsApi.joinTrip(code);
+      } catch {
+        await tripsApi.addMember(tripId, 'usr_me', 'member');
+      }
       router.push(`/trips/${tripId}`);
     } catch (err: any) {
       console.error('Failed to join trip:', err);

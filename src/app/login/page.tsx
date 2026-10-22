@@ -2,12 +2,15 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/features/auth/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/design-system/components/Card';
 import { Button } from '@/design-system/components/Button';
 import { Input } from '@/design-system/components/Input';
-import { authApi } from '@/api/auth';
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,21 +22,10 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const res: any = await authApi.login(email, 'mock_firebase_token_for_now');
-      if (res.token) {
-        localStorage.setItem('token', res.token);
-        if (res.user) {
-          localStorage.setItem('wakeru_user', JSON.stringify(res.user));
-        }
-        if (email.includes('vendor')) {
-          window.location.href = '/vendor';
-        } else if (email.includes('admin')) {
-          window.location.href = '/admin';
-        } else {
-          window.location.href = '/trips';
-        }
-      }
+      await login(email.trim(), password);
+      router.push('/dashboard');
     } catch (err: any) {
+      console.error('Login error:', err);
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
@@ -42,26 +34,23 @@ export default function LoginPage() {
 
   const handleQuickDemo = async (role: 'traveler' | 'vendor' | 'admin') => {
     setLoading(true);
-    const demoEmail =
-      role === 'vendor'
-        ? 'vikram.goa.villas@wakeru.local'
-        : role === 'admin'
-        ? 'admin@wakeru.local'
-        : 'alex.traveler@wakeru.local';
+    setError(null);
+    try {
+      const demoEmail =
+        role === 'vendor'
+          ? 'vikram.goa.villas@wakeru.local'
+          : role === 'admin'
+          ? 'admin@wakeru.local'
+          : 'alex.traveler@wakeru.local';
 
-    const res: any = await authApi.login(demoEmail, 'mock_firebase_demo_token');
-    if (res?.token) {
-      localStorage.setItem('token', res.token);
-      if (res.user) {
-        localStorage.setItem('wakeru_user', JSON.stringify(res.user));
-      }
-      if (role === 'vendor') {
-        window.location.href = '/vendor';
-      } else if (role === 'admin') {
-        window.location.href = '/admin';
-      } else {
-        window.location.href = '/trips';
-      }
+      await login(demoEmail);
+      if (role === 'vendor') router.push('/vendor');
+      else if (role === 'admin') router.push('/admin');
+      else router.push('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Demo login failed.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -73,11 +62,11 @@ export default function LoginPage() {
           <Link href="/" className="inline-flex items-center gap-2">
             <span className="text-3xl">🌴</span>
             <span className="text-2xl font-black text-[var(--color-wakeru-text-primary)] tracking-tight">
-              TripSplit <span className="text-[var(--color-wakeru-primary)]">× Wakeru</span>
+              TripSplit <span className="text-[var(--color-wakeru-primary)]">OS</span>
             </span>
           </Link>
           <p className="text-xs text-[var(--color-wakeru-text-secondary)]">
-            Autonomous Group Travel &amp; Local Partner Platform
+            Autonomous Group Travel &amp; Multi-Currency FinTech Platform
           </p>
         </div>
 
@@ -85,7 +74,7 @@ export default function LoginPage() {
           <CardHeader className="text-center pb-2">
             <CardTitle className="text-xl">Sign In to Your Account</CardTitle>
             <p className="text-[var(--color-wakeru-text-secondary)] text-xs mt-1">
-              Access your trip ledgers, bookings, or partner business portal
+              Access your trip ledgers, budgets, and outstanding settlements
             </p>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -98,81 +87,85 @@ export default function LoginPage() {
                 onChange={e => setEmail(e.target.value)}
                 required
               />
-              <Input
-                label="Password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-              />
+
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <label className="font-medium text-[var(--color-wakeru-text-primary)]">Password</label>
+                  <Link
+                    href="/forgot-password"
+                    className="text-[var(--color-wakeru-primary)] hover:underline"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                />
+              </div>
 
               {error && (
-                <div className="p-3 text-xs text-[var(--color-wakeru-danger)] bg-red-50 dark:bg-red-950/20 border border-[var(--color-wakeru-danger)] rounded-md">
+                <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-600 rounded-[var(--radius-control)] text-xs">
                   {error}
                 </div>
               )}
 
-              <Button type="submit" variant="primary" className="w-full h-10 font-bold" disabled={loading}>
-                {loading ? 'Authenticating...' : 'Sign In'}
+              <Button type="submit" variant="primary" className="w-full" isLoading={loading}>
+                Sign In
               </Button>
             </form>
 
-            {/* Quick Demo Access Divider */}
-            <div className="relative">
+            <div className="relative text-center">
               <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-[var(--color-wakeru-border)]" />
+                <div className="w-full border-t border-[var(--color-wakeru-border)]"></div>
               </div>
-              <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider">
-                <span className="bg-[var(--color-wakeru-surface)] px-2 text-[var(--color-wakeru-text-muted)]">
-                  Instant Demo Access
-                </span>
-              </div>
+              <span className="relative bg-[var(--color-wakeru-surface-elevated)] px-2 text-[10px] uppercase font-bold text-[var(--color-wakeru-text-tertiary)] tracking-wider">
+                Or One-Click Demo Profiles
+              </span>
             </div>
 
+            {/* Quick Demo Switchers */}
             <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-[11px]"
                 onClick={() => handleQuickDemo('traveler')}
                 disabled={loading}
-                className="p-2.5 rounded-[var(--radius-control)] border border-[var(--color-wakeru-border)] bg-[var(--color-wakeru-surface)] hover:bg-[var(--color-wakeru-surface-hover)] text-center transition-all text-xs group"
               >
-                <span className="text-xl block mb-1 group-hover:scale-110 transition-transform">🎒</span>
-                <span className="font-bold block text-[var(--color-wakeru-text-primary)]">Traveler</span>
-                <span className="text-[10px] text-[var(--color-wakeru-text-muted)]">Alex</span>
-              </button>
-
-              <button
-                type="button"
+                Traveler ✈️
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-[11px]"
                 onClick={() => handleQuickDemo('vendor')}
                 disabled={loading}
-                className="p-2.5 rounded-[var(--radius-control)] border border-[var(--color-wakeru-border)] bg-[var(--color-wakeru-surface)] hover:bg-[var(--color-wakeru-surface-hover)] text-center transition-all text-xs group"
               >
-                <span className="text-xl block mb-1 group-hover:scale-110 transition-transform">🏡</span>
-                <span className="font-bold block text-[var(--color-wakeru-text-primary)]">Host/Vendor</span>
-                <span className="text-[10px] text-[var(--color-wakeru-text-muted)]">Vikram</span>
-              </button>
-
-              <button
-                type="button"
+                Host 🏡
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-[11px]"
                 onClick={() => handleQuickDemo('admin')}
                 disabled={loading}
-                className="p-2.5 rounded-[var(--radius-control)] border border-[var(--color-wakeru-border)] bg-[var(--color-wakeru-surface)] hover:bg-[var(--color-wakeru-surface-hover)] text-center transition-all text-xs group"
               >
-                <span className="text-xl block mb-1 group-hover:scale-110 transition-transform">🛡️</span>
-                <span className="font-bold block text-[var(--color-wakeru-text-primary)]">Admin</span>
-                <span className="text-[10px] text-[var(--color-wakeru-text-muted)]">Moderator</span>
-              </button>
+                Admin 🛡️
+              </Button>
+            </div>
+
+            <div className="text-center pt-2 border-t border-[var(--color-wakeru-border)] text-xs text-[var(--color-wakeru-text-secondary)]">
+              Don&apos;t have an account?{' '}
+              <Link href="/register" className="text-[var(--color-wakeru-primary)] font-bold hover:underline">
+                Sign Up
+              </Link>
             </div>
           </CardContent>
         </Card>
-
-        {/* Footer links */}
-        <div className="text-center text-xs text-[var(--color-wakeru-text-secondary)]">
-          <Link href="/" className="hover:text-[var(--color-wakeru-primary)] underline">
-            &larr; Back to Landing Page
-          </Link>
-        </div>
       </div>
     </div>
   );

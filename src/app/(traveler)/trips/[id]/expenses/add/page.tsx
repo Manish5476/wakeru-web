@@ -85,10 +85,11 @@ export default function AddExpensePage({ params }: { params: Promise<{ id: strin
     try {
       setLoading(true);
       const res = await tripsApi.getTrip(tripId);
-      setTrip(res.trip);
+      const resTrip = (res as any)?.data?.trip || (res as any)?.trip;
+      setTrip(resTrip);
 
       // Default all members selected
-      const memberIds = res.trip.members.map(m => m.userId);
+      const memberIds = (resTrip?.members || []).map((m: any) => m.userId);
       setSelectedMemberIds(memberIds);
 
       // Default payers
@@ -98,7 +99,7 @@ export default function AddExpensePage({ params }: { params: Promise<{ id: strin
       const initialExact: Record<string, string> = {};
       const initialPct: Record<string, string> = {};
       const initialShares: Record<string, string> = {};
-      memberIds.forEach(id => {
+      memberIds.forEach((id: string) => {
         initialExact[id] = '';
         initialPct[id] = (100 / memberIds.length).toFixed(1);
         initialShares[id] = '1';

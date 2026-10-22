@@ -42,8 +42,11 @@ export default function ReceiptScannerPage({ params }: { params: Promise<{ id: s
 
   React.useEffect(() => {
     tripsApi.getTrip(tripId).then(res => {
-      setTrip(res.trip);
-      setPaidById(res.trip.members[0]?.userId || 'usr_me');
+      const tripObj = (res as any)?.data?.trip || (res as any)?.trip;
+      if (tripObj) {
+        setTrip(tripObj);
+        setPaidById(tripObj.members?.[0]?.userId || 'usr_me');
+      }
       setLoadingTrip(false);
     }).catch(() => setLoadingTrip(false));
   }, [tripId]);

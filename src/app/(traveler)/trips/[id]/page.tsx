@@ -102,11 +102,11 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
         tripsApi.getTravelPlan(tripId),
       ]);
 
-      setTrip(tripRes.trip);
-      setExpenses(expRes.expenses);
-      setSettlement(settleRes.settlement);
-      setBalances(settleRes.balances);
-      setTravelPlan(planRes.plan);
+      setTrip((tripRes as any)?.data?.trip || (tripRes as any)?.trip || (tripRes as any)?.data || null);
+      setExpenses((expRes as any)?.data?.expenses || (expRes as any)?.expenses || (expRes as any)?.data?.items || []);
+      setSettlement((settleRes as any)?.data?.settlement || (settleRes as any)?.settlement || null);
+      setBalances((settleRes as any)?.data?.balances || (settleRes as any)?.balances || (settleRes as any)?.data?.summary || []);
+      setTravelPlan((planRes as any)?.data?.plan || (planRes as any)?.plan || null);
     } catch (err) {
       console.error('Failed to load trip hub data:', err);
     } finally {
@@ -146,7 +146,7 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
   const handleConfirmSettlementPayment = async (txId: string) => {
     try {
       const res = await settlementsApi.confirmTransaction(tripId, txId);
-      setSettlement(res.settlement);
+      setSettlement((res as any)?.data?.settlement || (res as any)?.settlement);
       setSettleModalTx(null);
     } catch (err) {
       console.error('Failed to confirm payment:', err);
@@ -211,16 +211,16 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
   const handleDeleteExpense = async (expenseId: string) => {
     if (!confirm('Are you sure you want to delete this expense?')) return;
     try {
-      await expensesApi.delete(expenseId);
+      await expensesApi.archiveExpense(expenseId);
       setSelectedExpense(null);
       // Reload expenses & settlement
       const [expRes, settleRes] = await Promise.all([
         expensesApi.getTripExpenses(tripId),
         settlementsApi.calculateSettlement(tripId),
       ]);
-      setExpenses(expRes.expenses);
-      setSettlement(settleRes.settlement);
-      setBalances(settleRes.balances);
+      setExpenses((expRes as any)?.data?.expenses || (expRes as any)?.expenses || (expRes as any)?.data?.items || []);
+      setSettlement((settleRes as any)?.data?.settlement || (settleRes as any)?.settlement);
+      setBalances((settleRes as any)?.data?.balances || (settleRes as any)?.balances || (settleRes as any)?.data?.summary || []);
     } catch (err) {
       console.error('Failed to delete expense:', err);
     }
@@ -347,9 +347,9 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
         </div>
       </div>
 
-      {/* 2. Interactive Navigation Tabs */}
-      <div className="sticky top-16 z-40 bg-[var(--color-wakeru-surface-elevated)] border-b border-[var(--color-wakeru-border)] shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center gap-1 sm:gap-2 overflow-x-auto py-2">
+      {/* 2. Interactive Navigation Tabs (Frosted Floating Bar) */}
+      <div className="sticky top-16 z-40 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl border-b border-black/5 dark:border-white/10 shadow-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center gap-1 sm:gap-2 overflow-x-auto py-2.5">
           {(
             [
               { id: 'overview', label: 'Trip Overview', icon: 'compass' },
@@ -364,10 +364,10 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-[var(--radius-control)] text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all duration-200 cursor-pointer ${
                   isActive
-                    ? 'bg-[var(--color-wakeru-primary)] text-white shadow-xs'
-                    : 'text-[var(--color-wakeru-text-secondary)] hover:text-[var(--color-wakeru-text-primary)] hover:bg-[var(--color-wakeru-surface-muted)]'
+                    ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-md'
+                    : 'text-[var(--color-wakeru-text-secondary)] hover:text-[var(--color-wakeru-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'
                 }`}
               >
                 <AppIcon name={tab.icon as AppIconName} size={16} />

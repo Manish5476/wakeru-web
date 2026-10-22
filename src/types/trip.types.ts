@@ -8,6 +8,7 @@ export interface ITripMember {
   name: string;
   email?: string;
   avatarUrl?: string;
+  avatar?: string;
   role: TripRole;
   joinedAt: string;
   upiId?: string;
@@ -36,6 +37,7 @@ export interface ITrip {
   _id: string;
   id?: string;
   title: string;
+  name?: string;
   description?: string;
   destination: string;
   country?: string;
