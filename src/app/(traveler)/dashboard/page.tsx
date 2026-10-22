@@ -13,9 +13,19 @@ import { formatCurrency } from '@/lib/formatters';
 import { AppIcon } from '@/design-system/components/AppIcon';
 import { Button } from '@/design-system/components/Button';
 import { GlassCard } from '@/design-system/components/GlassCard';
-import { StatCard } from '@/design-system/components/StatCard';
+import { ExecutiveBalanceCard } from '@/design-system/components/ExecutiveBalanceCard';
+import { BentoQuickActions } from '@/design-system/components/BentoQuickActions';
 import { TripCard } from '@/design-system/components/TripCard';
 import { ExpenseCard } from '@/design-system/components/ExpenseCard';
+
+function getGreeting(): { emoji: string; text: string } {
+  const hour = new Date().getHours();
+  if (hour < 6) return { emoji: '🌙', text: 'Good Night' };
+  if (hour < 12) return { emoji: '🌅', text: 'Good Morning' };
+  if (hour < 17) return { emoji: '☀️', text: 'Good Afternoon' };
+  if (hour < 21) return { emoji: '🌇', text: 'Good Evening' };
+  return { emoji: '🌙', text: 'Good Night' };
+}
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -26,6 +36,8 @@ export default function DashboardPage() {
   const [recentExpenses, setRecentExpenses] = useState<IExpense[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const greeting = getGreeting();
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -35,7 +47,7 @@ export default function DashboardPage() {
         dashboardApi.getDashboard(),
         ledgerApi.getBalances(),
         tripsApi.getMyTrips({ limit: 6 }),
-        expensesApi.getMyExpenses({ limit: 5 }),
+        expensesApi.getMyExpenses({ limit: 6 }),
       ]);
 
       if (dashRes.status === 'fulfilled' && dashRes.value?.data) {
@@ -77,11 +89,12 @@ export default function DashboardPage() {
     return (
       <div className="space-y-8 animate-pulse">
         <div className="h-10 bg-black/5 dark:bg-white/5 rounded-2xl w-1/3"></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-32 bg-black/5 dark:bg-white/5 rounded-2xl"></div>
+            <div key={i} className="h-24 bg-black/5 dark:bg-white/5 rounded-2xl"></div>
           ))}
         </div>
+        <div className="h-44 bg-black/5 dark:bg-white/5 rounded-2xl"></div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 h-80 bg-black/5 dark:bg-white/5 rounded-2xl"></div>
           <div className="h-80 bg-black/5 dark:bg-white/5 rounded-2xl"></div>
@@ -92,41 +105,29 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      {/* Top Welcome & Actions Ribbon */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* ── Top Greeting Ribbon (Exact Expo Greeting) ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">
-            <span>✨ Welcome back, {user?.displayName || user?.name || 'Traveler'}</span>
+            <span>
+              {greeting.emoji} {greeting.text}, {user?.displayName || user?.name || 'Traveler'}
+            </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--color-wakeru-text-primary)] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-[var(--color-wakeru-text-primary)] tracking-tight">
             Financial &amp; Travel Overview
           </h1>
           <p className="text-xs sm:text-sm text-[var(--color-wakeru-text-secondary)] mt-1">
-            Real-time group budgets, debt-minimized settlements, and companion itineraries.
+            Live group travel budgets, debt-minimized settlements, and companion itineraries.
           </p>
         </div>
 
-        {/* Quick Action Controls */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Link href="/trips/create">
-            <Button variant="gold" size="sm" className="flex items-center gap-1.5 shadow-sm">
-              <AppIcon name="plus" size={16} />
-              <span>Plan Trip</span>
-            </Button>
-          </Link>
-          <Link href="/expenses">
-            <Button variant="secondary" size="sm" className="flex items-center gap-1.5">
-              <AppIcon name="receipt" size={16} />
-              <span>Expenses</span>
-            </Button>
-          </Link>
-          <Link href="/balances">
-            <Button variant="secondary" size="sm" className="flex items-center gap-1.5">
-              <AppIcon name="wallet" size={16} />
-              <span>Settle Up</span>
-            </Button>
-          </Link>
-        </div>
+        {/* Global Search / Action Trigger */}
+        <Link href="/trips/create">
+          <Button variant="gold" size="sm" className="flex items-center gap-1.5 shadow-sm">
+            <AppIcon name="plus" size={16} />
+            <span>Plan New Trip</span>
+          </Button>
+        </Link>
       </div>
 
       {error && (
@@ -138,50 +139,22 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* KPI Stat Cards (Direct port of native StatCard) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Net Group Balance"
-          amount={netBalance}
-          currency={currency}
-          variant={netBalance >= 0 ? 'success' : 'danger'}
-          subtitle={netBalance >= 0 ? 'Net positive receivable' : 'Net outstanding debt'}
-          icon={<AppIcon name="wallet" size={18} />}
-        />
+      {/* ── 1. Bento Quick Actions Cluster (Exact Expo Bento) ── */}
+      <BentoQuickActions />
 
-        <StatCard
-          title="You Owe"
-          amount={youOwe}
-          currency={currency}
-          variant="danger"
-          subtitle="To trip companions"
-          icon={<AppIcon name="arrow-right" size={18} />}
-        />
+      {/* ── 2. Executive Net Balance Card (Exact Expo Card) ── */}
+      <ExecutiveBalanceCard
+        netBalance={netBalance}
+        totalOwed={youOwe}
+        totalLent={owesYou}
+        currency={currency}
+      />
 
-        <StatCard
-          title="You Are Owed"
-          amount={owesYou}
-          currency={currency}
-          variant="success"
-          subtitle="Pending settlement"
-          icon={<AppIcon name="arrow-left" size={18} />}
-        />
-
-        <StatCard
-          title="Active Journeys"
-          amount={activeTrips.length}
-          currency=""
-          variant="default"
-          subtitle={activeTrips.length === 1 ? '1 ongoing journey' : `${activeTrips.length} journeys active`}
-          icon={<AppIcon name="plane" size={18} />}
-        />
-      </div>
-
-      {/* Main Two-Column Layout */}
+      {/* ── 3. Main Two-Column Layout ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left 2 Cols: Trips & Recent Activity */}
         <div className="lg:col-span-2 space-y-8">
-          {/* Active Trips Section with TripCards */}
+          {/* Active Trips Section */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -237,7 +210,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Recent Expenses Feed with ExpenseCards */}
+          {/* Recent Expenses Feed */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -252,23 +225,24 @@ export default function DashboardPage() {
             </div>
 
             {recentExpenses.length === 0 ? (
-              <GlassCard variant="soft" padding="lg" className="text-center text-xs text-[var(--color-wakeru-text-secondary)]">
-                No recent expenses recorded. Add your first shared or personal expense.
+              <GlassCard variant="soft" padding="lg" className="text-center text-xs text-zinc-500">
+                No recent expenses recorded yet.
               </GlassCard>
             ) : (
               <div className="space-y-3">
-                {recentExpenses.map(expense => (
+                {recentExpenses.slice(0, 5).map(expense => (
                   <ExpenseCard
                     key={expense._id || expense.id}
                     expense={{
                       id: expense._id || expense.id,
-                      title: expense.description || expense.title,
+                      title: expense.title || expense.description || 'Expense',
                       amount: expense.amount,
-                      currency: expense.currency || 'INR',
+                      currency: expense.currency || currency,
                       category: expense.category,
                       date: expense.date,
-                      paidByName: expense.paidBy === user?._id ? 'You' : 'Member',
-                      isSettled: expense.isSettled,
+                      paidByName: typeof expense.paidBy === 'object' ? (expense.paidBy as any)?.name : (expense.paidByName || 'Someone'),
+                      paidBy: typeof expense.paidBy === 'string' ? expense.paidBy : (expense.paidBy as any)?._id || '',
+                      splits: expense.splits,
                     }}
                   />
                 ))}
@@ -277,105 +251,66 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Right 1 Col: Outstanding Balances & Shortcuts */}
+        {/* Right 1 Col: Quick Settlement Engine & Summaries */}
         <div className="space-y-6">
-          <GlassCard variant="prominent" padding="lg">
+          {/* Quick Settlement Summary Widget */}
+          <GlassCard variant="medium" padding="lg" className="space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-black/5 dark:border-white/10">
-              <h3 className="text-sm font-bold text-[var(--color-wakeru-text-primary)]">
-                Outstanding Balances
-              </h3>
-              <Link href="/balances" className="text-xs text-amber-600 dark:text-amber-400 hover:underline font-semibold">
-                Full Ledger
-              </Link>
-            </div>
-
-            <div className="pt-4 space-y-3">
-              {balances?.counterparties && balances.counterparties.length > 0 ? (
-                balances.counterparties.slice(0, 5).map(cp => (
-                  <div
-                    key={cp.counterpartyId}
-                    className="flex items-center justify-between p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5"
-                  >
-                    <div>
-                      <p className="text-xs font-bold text-[var(--color-wakeru-text-primary)]">
-                        {cp.counterpartyName}
-                      </p>
-                      <p className="text-[10px] text-[var(--color-wakeru-text-muted)] mt-0.5">
-                        {cp.direction === 'owes_you' ? '🟢 Owes you' : '🔴 You owe'}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span
-                        className={`text-xs font-extrabold ${
-                          cp.direction === 'owes_you' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-                        }`}
-                      >
-                        {formatCurrency(Math.abs(cp.netAmount), balances.baseCurrency || 'INR')}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-6 text-xs text-[var(--color-wakeru-text-secondary)]">
-                  <span>✨ All balances are settled up!</span>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <AppIcon name="check-circle" size={18} />
                 </div>
-              )}
-
-              <Link href="/balances" className="block pt-2">
-                <Button variant="secondary" size="sm" className="w-full text-xs">
-                  Review &amp; Settle All Debts
-                </Button>
+                <h3 className="font-bold text-sm text-[var(--color-wakeru-text-primary)]">
+                  Settlement Engine
+                </h3>
+              </div>
+              <Link href="/balances" className="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline">
+                Settle Up →
               </Link>
             </div>
+
+            <p className="text-xs text-[var(--color-wakeru-text-secondary)] leading-relaxed">
+              Greedy graph min-cash-flow algorithms condense group IOUs into the minimum number of direct UPI payments.
+            </p>
+
+            <div className="p-3 bg-black/5 dark:bg-white/5 rounded-xl border border-black/5 dark:border-white/10 space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-zinc-500">You Owe Companions:</span>
+                <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                  {formatCurrency(youOwe, currency)}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-zinc-500">Owed to You:</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  {formatCurrency(owesYou, currency)}
+                </span>
+              </div>
+            </div>
+
+            <Link href="/balances" className="block w-full">
+              <Button variant="secondary" size="sm" className="w-full text-xs font-bold">
+                Review &amp; Pay via UPI
+              </Button>
+            </Link>
           </GlassCard>
 
-          {/* Quick Hub Navigation Cards */}
-          <GlassCard variant="warm" padding="lg">
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 pb-3 border-b border-amber-500/20">
-              TripSplit Features
-            </h3>
-            <div className="space-y-1.5 pt-3 text-xs">
-              <Link
-                href="/finance"
-                className="flex items-center justify-between p-2.5 rounded-xl hover:bg-amber-500/10 transition-colors"
-              >
-                <span className="flex items-center gap-2.5">
-                  <span className="text-base">📊</span>
-                  <span className="font-semibold text-zinc-800 dark:text-zinc-200">Personal Finance &amp; Budgets</span>
-                </span>
-                <span className="text-amber-600">→</span>
-              </Link>
-              <Link
-                href="/expenses/receipt-scanner"
-                className="flex items-center justify-between p-2.5 rounded-xl hover:bg-amber-500/10 transition-colors"
-              >
-                <span className="flex items-center gap-2.5">
-                  <span className="text-base">📸</span>
-                  <span className="font-semibold text-zinc-800 dark:text-zinc-200">Receipt Scanner (OCR)</span>
-                </span>
-                <span className="text-amber-600">→</span>
-              </Link>
-              <Link
-                href="/friends"
-                className="flex items-center justify-between p-2.5 rounded-xl hover:bg-amber-500/10 transition-colors"
-              >
-                <span className="flex items-center gap-2.5">
-                  <span className="text-base">👥</span>
-                  <span className="font-semibold text-zinc-800 dark:text-zinc-200">Friends &amp; Travel Buddies</span>
-                </span>
-                <span className="text-amber-600">→</span>
-              </Link>
-              <Link
-                href="/achievements"
-                className="flex items-center justify-between p-2.5 rounded-xl hover:bg-amber-500/10 transition-colors"
-              >
-                <span className="flex items-center gap-2.5">
-                  <span className="text-base">🏆</span>
-                  <span className="font-semibold text-zinc-800 dark:text-zinc-200">Badges &amp; Milestones</span>
-                </span>
-                <span className="text-amber-600">→</span>
-              </Link>
+          {/* Quick Travel Planner Shortcut */}
+          <GlassCard variant="warm" padding="lg" className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">✈️</span>
+              <h3 className="font-bold text-sm text-[var(--color-wakeru-text-primary)]">
+                Collaborative Planner
+              </h3>
             </div>
+            <p className="text-xs text-[var(--color-wakeru-text-secondary)] leading-relaxed">
+              Build day-by-day itineraries, track packing checklists, and pin flight or villa reservations with your companions.
+            </p>
+            <Link href="/trips" className="block">
+              <Button variant="outline" size="sm" className="w-full text-xs">
+                Explore Trips Portfolio
+              </Button>
+            </Link>
           </GlassCard>
         </div>
       </div>

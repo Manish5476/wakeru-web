@@ -3,6 +3,7 @@
 import React, { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/features/auth/AuthContext';
 import { ITrip, ITripMember } from '@/types/trip.types';
 import { IExpense, ExpenseCategory } from '@/types/expense.types';
 import { ISettlement, ISettlementTransaction, MemberBalance } from '@/types/settlement.types';
@@ -35,11 +36,106 @@ const FX_RATES: Record<string, number> = {
 
 type ActiveTab = 'overview' | 'expenses' | 'settlements' | 'itinerary' | 'members';
 
+/**
+ * Derives each companion's fair balance from the trip roster, logged expenses, and settlements.
+ * Fallback when raw balances array is omitted from backend settlement response.
+ */
+function deriveMemberBalances(
+  trip: ITrip | null,
+  expenses: IExpense[] = [],
+  _settlement: ISettlement | null = null,
+): MemberBalance[] {
+  if (!trip || !Array.isArray(trip.members) || trip.members.length === 0) {
+    return [];
+  }
+
+  const balanceMap = new Map<
+    string,
+    {
+      userId: string;
+      userName: string;
+      avatarUrl?: string;
+      totalPaid: number;
+      totalShare: number;
+    }
+  >();
+
+  // Initialize with trip members
+  trip.members.forEach(member => {
+    const id = member.userId || member.id;
+    balanceMap.set(id, {
+      userId: id,
+      userName: member.name || 'Member',
+      avatarUrl: member.avatarUrl || member.avatar,
+      totalPaid: 0,
+      totalShare: 0,
+    });
+  });
+
+  // Accumulate paid and shares from expenses
+  if (Array.isArray(expenses)) {
+    expenses.forEach(exp => {
+      // 1. Total paid
+      if (Array.isArray(exp.payers) && exp.payers.length > 0) {
+        exp.payers.forEach(p => {
+          if (!balanceMap.has(p.userId)) {
+            balanceMap.set(p.userId, {
+              userId: p.userId,
+              userName: p.userName || 'Member',
+              totalPaid: 0,
+              totalShare: 0,
+            });
+          }
+          const rec = balanceMap.get(p.userId)!;
+          rec.totalPaid += Number(p.amount) || 0;
+        });
+      } else if (exp.paidBy) {
+        if (!balanceMap.has(exp.paidBy)) {
+          balanceMap.set(exp.paidBy, {
+            userId: exp.paidBy,
+            userName: exp.paidByName || 'Member',
+            totalPaid: 0,
+            totalShare: 0,
+          });
+        }
+        const rec = balanceMap.get(exp.paidBy)!;
+        rec.totalPaid += Number(exp.amount) || 0;
+      }
+
+      // 2. Total share (what each person owes)
+      if (Array.isArray(exp.splits)) {
+        exp.splits.forEach(s => {
+          if (!balanceMap.has(s.userId)) {
+            balanceMap.set(s.userId, {
+              userId: s.userId,
+              userName: s.userName || 'Member',
+              totalPaid: 0,
+              totalShare: 0,
+            });
+          }
+          const rec = balanceMap.get(s.userId)!;
+          rec.totalShare += Number(s.amount) || 0;
+        });
+      }
+    });
+  }
+
+  return Array.from(balanceMap.values()).map(b => ({
+    userId: b.userId,
+    userName: b.userName,
+    avatarUrl: b.avatarUrl,
+    totalPaid: Math.round(b.totalPaid * 100) / 100,
+    totalShare: Math.round(b.totalShare * 100) / 100,
+    netBalance: Math.round((b.totalPaid - b.totalShare) * 100) / 100,
+  }));
+}
+
 export default function TripHubPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const tripId = resolvedParams.id;
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [loading, setLoading] = useState<boolean>(true);
@@ -102,10 +198,19 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
         tripsApi.getTravelPlan(tripId),
       ]);
 
-      setTrip((tripRes as any)?.data?.trip || (tripRes as any)?.trip || (tripRes as any)?.data || null);
-      setExpenses((expRes as any)?.data?.expenses || (expRes as any)?.expenses || (expRes as any)?.data?.items || []);
-      setSettlement((settleRes as any)?.data?.settlement || (settleRes as any)?.settlement || null);
-      setBalances((settleRes as any)?.data?.balances || (settleRes as any)?.balances || (settleRes as any)?.data?.summary || []);
+      const loadedTrip = (tripRes as any)?.data?.trip || (tripRes as any)?.trip || (tripRes as any)?.data || null;
+      const loadedExpenses = (expRes as any)?.data?.expenses || (expRes as any)?.expenses || (expRes as any)?.data?.items || [];
+      const loadedSettlement = (settleRes as any)?.data?.settlement || (settleRes as any)?.settlement || null;
+
+      const rawBalances = (settleRes as any)?.data?.balances || (settleRes as any)?.balances;
+      const computedBalances = Array.isArray(rawBalances)
+        ? rawBalances
+        : deriveMemberBalances(loadedTrip, loadedExpenses, loadedSettlement);
+
+      setTrip(loadedTrip);
+      setExpenses(Array.isArray(loadedExpenses) ? loadedExpenses : []);
+      setSettlement(loadedSettlement);
+      setBalances(computedBalances);
       setTravelPlan((planRes as any)?.data?.plan || (planRes as any)?.plan || null);
     } catch (err) {
       console.error('Failed to load trip hub data:', err);
@@ -137,7 +242,8 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
 
   const handleCopyWhatsAppSummary = () => {
     if (!trip || !settlement) return;
-    const text = generateWhatsAppSettlementSummary(trip, settlement, balances);
+    const safeBalances = Array.isArray(balances) ? balances : [];
+    const text = generateWhatsAppSettlementSummary(trip, settlement, safeBalances);
     navigator.clipboard.writeText(text);
     setCopiedWhatsApp(true);
     setTimeout(() => setCopiedWhatsApp(false), 2500);
@@ -218,9 +324,16 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
         expensesApi.getTripExpenses(tripId),
         settlementsApi.calculateSettlement(tripId),
       ]);
-      setExpenses((expRes as any)?.data?.expenses || (expRes as any)?.expenses || (expRes as any)?.data?.items || []);
-      setSettlement((settleRes as any)?.data?.settlement || (settleRes as any)?.settlement);
-      setBalances((settleRes as any)?.data?.balances || (settleRes as any)?.balances || (settleRes as any)?.data?.summary || []);
+      const loadedExpenses = (expRes as any)?.data?.expenses || (expRes as any)?.expenses || (expRes as any)?.data?.items || [];
+      const loadedSettlement = (settleRes as any)?.data?.settlement || (settleRes as any)?.settlement || null;
+      const rawBalances = (settleRes as any)?.data?.balances || (settleRes as any)?.balances;
+      const computedBalances = Array.isArray(rawBalances)
+        ? rawBalances
+        : deriveMemberBalances(trip, loadedExpenses, loadedSettlement);
+
+      setExpenses(Array.isArray(loadedExpenses) ? loadedExpenses : []);
+      setSettlement(loadedSettlement);
+      setBalances(computedBalances);
     } catch (err) {
       console.error('Failed to delete expense:', err);
     }
@@ -247,12 +360,23 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
   const isBudgetExceeded = totalSpent > totalBudget;
   const remainingBudget = Math.max(0, totalBudget - totalSpent);
 
+  // Safe Balances List
+  const safeBalances = Array.isArray(balances) ? balances : [];
+
   // Current User Balance
-  const myBalance = balances.find(b => b.userId === 'usr_me');
+  const currentUserId = user?._id || user?.id || user?.firebaseUid || 'usr_me';
+  const myBalance = safeBalances.find(
+    b =>
+      b.userId === currentUserId ||
+      b.userId === user?._id ||
+      b.userId === user?.id ||
+      b.userId === user?.firebaseUid ||
+      b.userId === 'usr_me'
+  ) || safeBalances[0];
   const myNet = myBalance?.netBalance || 0;
 
   // Filtered expenses
-  const filteredExpenses = expenses.filter(e => {
+  const filteredExpenses = (expenses || []).filter(e => {
     if (categoryFilter === 'all') return true;
     return e.category === categoryFilter;
   });
@@ -324,7 +448,7 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
                 <AppIcon name="calendar" size={14} />
                 <span>{formatDateRange(trip.startDate, trip.endDate)}</span>
                 <span>•</span>
-                <span>{trip.members.length} companions</span>
+                <span>{(trip.members || []).length} companions</span>
               </div>
             </div>
 
@@ -356,7 +480,7 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
               { id: 'expenses', label: `Expenses (${expenses.length})`, icon: 'receipt' },
               { id: 'settlements', label: 'Debt Settlements', icon: 'wallet' },
               { id: 'itinerary', label: 'Itinerary & Packing', icon: 'calendar' },
-              { id: 'members', label: `Companions (${trip.members.length})`, icon: 'users' },
+              { id: 'members', label: `Companions (${(trip.members || []).length})`, icon: 'users' },
             ] as const
           ).map(tab => {
             const isActive = activeTab === tab.id;
@@ -571,7 +695,7 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
                 </div>
 
                 <div className="bg-[var(--color-wakeru-surface)] border border-[var(--color-wakeru-border)] rounded-[var(--radius-card)] p-4 shadow-xs space-y-3">
-                  {balances.map(b => (
+                  {safeBalances.map(b => (
                     <div
                       key={b.userId}
                       className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--color-wakeru-surface-muted)]"
@@ -1111,7 +1235,7 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--color-wakeru-border)]">
-                    {balances.map(b => (
+                    {safeBalances.map(b => (
                       <tr key={b.userId} className="hover:bg-[var(--color-wakeru-surface-muted)]/50">
                         <td className="p-4 font-bold text-[var(--color-wakeru-text-primary)] flex items-center gap-2">
                           <div className="w-6 h-6 rounded-full bg-[var(--color-wakeru-primary)] text-white text-[10px] font-bold flex items-center justify-center">
@@ -1375,7 +1499,7 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-black text-[var(--color-wakeru-text-primary)]">
-                  Trip Companions ({trip.members.length})
+                  Trip Companions ({(trip.members || []).length})
                 </h2>
                 <p className="text-xs text-[var(--color-wakeru-text-secondary)] mt-0.5">
                   Anyone in this list can log expenses, participate in splits, and settle balances.
@@ -1393,8 +1517,8 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {trip.members.map(member => {
-                const bal = balances.find(b => b.userId === member.userId);
+              {(trip.members || []).map(member => {
+                const bal = safeBalances.find(b => b.userId === member.userId || b.userId === member.id);
                 const isOwner = member.role === 'owner';
 
                 return (
@@ -1817,8 +1941,8 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
               className="w-full px-3 py-2 bg-[var(--color-wakeru-surface-muted)] border border-[var(--color-wakeru-border-strong)] rounded text-xs"
             >
               <option value="Everyone">Everyone</option>
-              {trip.members.map(m => (
-                <option key={m.userId} value={m.name}>
+              {(trip.members || []).map(m => (
+                <option key={m.userId || m.id} value={m.name}>
                   {m.name}
                 </option>
               ))}
@@ -1854,7 +1978,7 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
       >
         <div className="space-y-4">
           <div className="p-4 rounded-xl bg-[var(--color-wakeru-surface-muted)] border border-[var(--color-wakeru-border)] font-mono text-xs whitespace-pre-wrap max-h-80 overflow-y-auto leading-relaxed select-all">
-            {trip && settlement ? generateWhatsAppSettlementSummary(trip, settlement, balances) : ''}
+            {trip && settlement ? generateWhatsAppSettlementSummary(trip, settlement, safeBalances) : ''}
           </div>
           <p className="text-xs text-[var(--color-wakeru-text-secondary)]">
             💡 Tap &quot;Copy Summary&quot; and paste directly into your group chat.

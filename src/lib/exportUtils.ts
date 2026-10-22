@@ -60,17 +60,19 @@ export function generateWhatsAppSettlementSummary(
 ): string {
   const currency = trip.currency || 'INR';
   const totalSpend = trip.spentBase || 0;
+  const safeBalances = Array.isArray(balances) ? balances : [];
+  const memberCount = Array.isArray(trip.members) ? trip.members.length : 0;
 
   const lines: string[] = [
     `✈️ *${trip.title || 'Trip'} — Expense & Settlement Ledger*`,
     `📍 Destination: ${trip.destination}`,
     `💰 Total Group Spend: ${formatCurrency(totalSpend, currency)}`,
-    `👥 Group Size: ${trip.members.length} companions`,
+    `👥 Group Size: ${memberCount} companions`,
     '',
     `📊 *Member Balances:*`,
   ];
 
-  balances.forEach(b => {
+  safeBalances.forEach(b => {
     const net = b.netBalance;
     const sign = net > 0 ? '+ (Owed)' : net < 0 ? '- (Owes)' : '(Settled)';
     lines.push(`• ${b.userName}: Paid ${formatCurrency(b.totalPaid, currency)} | Net: ${formatCurrency(Math.abs(net), currency)} ${sign}`);
@@ -79,7 +81,7 @@ export function generateWhatsAppSettlementSummary(
   lines.push('');
   lines.push(`⚡ *Optimized Settlements (Min-Cash-Flow):*`);
 
-  if (!settlement.transactions || settlement.transactions.length === 0) {
+  if (!settlement?.transactions || settlement.transactions.length === 0) {
     lines.push('🎉 All debts are completely settled up!');
   } else {
     settlement.transactions.forEach((tx, idx) => {
