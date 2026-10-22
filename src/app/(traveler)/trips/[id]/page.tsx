@@ -258,7 +258,7 @@ export default function TripHubPage({ params }: { params: Promise<{ id: string }
   });
 
   return (
-    <div className="min-h-screen pb-16">
+    <div className="min-h-screen pb-16 overflow-x-hidden w-full max-w-full">
       {/* 1. Hero Vacation Banner */}
       <div className="relative h-64 sm:h-80 w-full bg-slate-950 overflow-hidden">
         <img

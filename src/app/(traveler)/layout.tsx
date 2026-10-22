@@ -32,7 +32,7 @@ function NavLink({
 
 export default function TravelerLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[var(--color-wakeru-bg)] flex flex-col">
+    <div className="min-h-screen bg-[var(--color-wakeru-bg)] flex flex-col overflow-x-hidden w-full max-w-full">
       <header className="sticky top-0 z-50 bg-[var(--color-wakeru-surface-elevated)]/95 backdrop-blur-sm border-b border-[var(--color-wakeru-border)] shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           {/* Logo + Nav */}
