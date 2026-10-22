@@ -13,6 +13,7 @@ export default function BookingsPage() {
   const router = useRouter();
   const [bookings, setBookings] = useState<BookingRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'ALL' | 'ACCEPTED' | 'REQUESTED' | 'DECLINED'>('ALL');
 
   const fetchBookings = () => {
     setLoading(true);
@@ -30,18 +31,23 @@ export default function BookingsPage() {
     if (!confirm('Are you sure you want to cancel this booking request?')) return;
     try {
       await discoveryApi.cancelBookingRequest(bookingId);
-      // Refresh the list after cancellation
       fetchBookings();
     } catch (error) {
       console.error('Failed to cancel booking', error);
     }
   };
 
+  const filtered = bookings.filter(b => {
+    if (filter === 'ALL') return true;
+    if (filter === 'DECLINED') return b.status === 'DECLINED' || b.status === 'CANCELLED';
+    return b.status === filter;
+  });
+
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-[var(--color-wakeru-text-primary)]">My Bookings & Reservations</h1>
+          <h1 className="text-3xl font-bold text-[var(--color-wakeru-text-primary)]">My Bookings &amp; Reservations</h1>
           <p className="text-[var(--color-wakeru-text-secondary)] mt-1">Manage your requested and confirmed local experiences.</p>
         </div>
         <div className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200/60 font-medium">
@@ -49,14 +55,41 @@ export default function BookingsPage() {
         </div>
       </header>
 
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-2 border-b border-[var(--color-wakeru-border)] pb-3">
+        {(['ALL', 'ACCEPTED', 'REQUESTED', 'DECLINED'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setFilter(tab)}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              filter === tab
+                ? 'bg-[var(--color-wakeru-primary)] text-white shadow-xs'
+                : 'bg-[var(--color-wakeru-surface-muted)] text-[var(--color-wakeru-text-secondary)] hover:text-[var(--color-wakeru-text-primary)]'
+            }`}
+          >
+            {tab === 'ALL'
+              ? `All Bookings (${bookings.length})`
+              : tab === 'ACCEPTED'
+              ? `Confirmed (${bookings.filter(b => b.status === 'ACCEPTED').length})`
+              : tab === 'REQUESTED'
+              ? `Pending (${bookings.filter(b => b.status === 'REQUESTED').length})`
+              : `Declined / Cancelled (${bookings.filter(b => b.status === 'DECLINED' || b.status === 'CANCELLED').length})`}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <Card className="animate-pulse h-64 bg-[var(--color-wakeru-surface-muted)]"></Card>
-      ) : bookings.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="text-center py-24">
             <span className="text-4xl block mb-2">🎒</span>
-            <h2 className="text-lg font-medium text-[var(--color-wakeru-text-primary)]">No bookings yet</h2>
-            <p className="text-[var(--color-wakeru-text-secondary)] mt-2">When you request an accommodation, dining, or activity, it will appear here.</p>
+            <h2 className="text-lg font-medium text-[var(--color-wakeru-text-primary)]">No bookings found</h2>
+            <p className="text-[var(--color-wakeru-text-secondary)] mt-2">
+              {filter === 'ALL'
+                ? 'When you request an accommodation, dining, or activity, it will appear here.'
+                : `No bookings found with status "${filter}".`}
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -64,15 +97,15 @@ export default function BookingsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Booking Ref & Service</TableHead>
+                <TableHead>Booking Ref &amp; Service</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Price</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Status &amp; Notes</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {bookings.map(b => (
+              {filtered.map(b => (
                 <TableRow key={b.id}>
                   <TableCell>
                     <div className="font-mono font-bold text-sm text-[var(--color-wakeru-text-primary)]">
@@ -84,15 +117,24 @@ export default function BookingsPage() {
                       </div>
                     )}
                   </TableCell>
-                  <TableCell>{new Date(b.bookingDate).toLocaleDateString()}</TableCell>
-                  <TableCell className="font-semibold">₹{(b.priceSnapshotMinor / 100).toFixed(2)}</TableCell>
+                  <TableCell className="text-xs">{new Date(b.bookingDate).toLocaleDateString()}</TableCell>
+                  <TableCell className="font-semibold text-xs">
+                    {b.currency || '₹'}{(b.priceSnapshotMinor / 100).toFixed(2)}
+                  </TableCell>
                   <TableCell>
-                    <Badge variant={
-                      b.status === 'ACCEPTED' ? 'success' :
-                      b.status === 'DECLINED' || b.status === 'CANCELLED' ? 'danger' : 'warning'
-                    }>
-                      {b.status}
-                    </Badge>
+                    <div className="space-y-1">
+                      <Badge variant={
+                        b.status === 'ACCEPTED' ? 'success' :
+                        b.status === 'DECLINED' || b.status === 'CANCELLED' ? 'danger' : 'warning'
+                      }>
+                        {b.status}
+                      </Badge>
+                      {(b.rejectionReason || b.reason) && (
+                        <div className="text-[11px] text-red-600 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 max-w-xs">
+                          <strong>Host note:</strong> {b.rejectionReason || b.reason}
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -101,13 +143,13 @@ export default function BookingsPage() {
                           variant="primary"
                           size="sm"
                           onClick={() => router.push(`/reservations/${b.id}`)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
                         >
-                          View Voucher 🎫
+                          View Pass &amp; Key 🔑
                         </Button>
                       )}
                       {b.status === 'REQUESTED' && (
-                        <Button variant="danger" size="sm" onClick={() => handleCancel(b.id)}>
+                        <Button variant="danger" size="sm" onClick={() => handleCancel(b.id)} className="text-xs">
                           Cancel
                         </Button>
                       )}

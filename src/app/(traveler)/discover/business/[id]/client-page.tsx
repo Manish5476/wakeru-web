@@ -1,54 +1,178 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/design-system/components/Card';
 import { Button } from '@/design-system/components/Button';
 import { Badge } from '@/design-system/components/Badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/design-system/components/Table';
+import { Modal } from '@/design-system/components/Modal';
+import { AppIcon } from '@/design-system/components/AppIcon';
 import { VenueLocationMapCard } from '@/design-system/components/VenueLocationMapCard';
 import { discoveryApi } from '@/api/discover';
-import { Business, BusinessService, BusinessReview } from '@/types/api';
-import { useParams } from 'next/navigation';
+import { tripsApi } from '@/api/trips';
+import { Business, BusinessService, BusinessReview, BookingRequest } from '@/types/api';
+import { ITrip } from '@/types/trip.types';
 
 export default function BusinessDetailClientPage() {
   const params = useParams();
+  const router = useRouter();
   const businessId = params.id as string;
-  
+
   const [business, setBusiness] = useState<Business | null>(null);
   const [services, setServices] = useState<BusinessService[]>([]);
   const [reviews, setReviews] = useState<BusinessReview[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Trips integration
+  const [myTrips, setMyTrips] = useState<ITrip[]>([]);
+
+  // Booking Modal State
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [selectedService, setSelectedService] = useState<BusinessService | null>(null);
+  const [bookingDate, setBookingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [guestsCount, setGuestsCount] = useState<number>(2);
+  const [selectedTripId, setSelectedTripId] = useState<string>('');
+  const [bookingNotes, setBookingNotes] = useState<string>('');
+  const [submittingBooking, setSubmittingBooking] = useState(false);
+  const [confirmedBooking, setConfirmedBooking] = useState<BookingRequest | null>(null);
+
+  // Add to Itinerary Modal State
+  const [addToTripModalOpen, setAddToTripModalOpen] = useState(false);
+  const [targetTripId, setTargetTripId] = useState('');
+  const [itineraryDayTheme, setItineraryDayTheme] = useState('');
+  const [addingToTrip, setAddingToTrip] = useState(false);
+  const [addedSuccess, setAddedSuccess] = useState(false);
+
   useEffect(() => {
     Promise.all([
       discoveryApi.getBusinessDetail(businessId).catch(() => null),
       discoveryApi.getBusinessServices(businessId).catch(() => []),
-      discoveryApi.getBusinessReviews(businessId).catch(() => [])
-    ]).then(([b, s, r]) => {
+      discoveryApi.getBusinessReviews(businessId).catch(() => []),
+      tripsApi.getMyTrips().catch(() => ({ trips: [] })),
+    ]).then(([b, s, r, t]) => {
       if (b) {
         setBusiness((b as any).data || b);
       }
       setServices((s as any).data || s);
       setReviews((r as any).data || r);
+      if (t?.trips) {
+        setMyTrips(t.trips);
+        if (t.trips.length > 0) {
+          setTargetTripId(t.trips[0]._id || t.trips[0].id || '');
+        }
+      }
       setLoading(false);
     });
   }, [businessId]);
 
+  const handleOpenBooking = (service?: BusinessService) => {
+    setSelectedService(service || (services.length > 0 ? services[0] : null));
+    setConfirmedBooking(null);
+    setBookingModalOpen(true);
+  };
+
+  const handleSubmitBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!business) return;
+
+    try {
+      setSubmittingBooking(true);
+      const priceMinor = selectedService
+        ? (selectedService.basePriceMinor ?? selectedService.priceMinor ?? 500000)
+        : 500000;
+
+      const payload = {
+        serviceId: selectedService?.id,
+        serviceName: selectedService?.serviceName || selectedService?.name || 'Direct Reservation',
+        businessName: business.businessName,
+        bookingDate,
+        guestsCount,
+        priceMinor,
+        currency: selectedService?.currency || 'INR',
+        notes: bookingNotes,
+        tripId: selectedTripId || undefined,
+      };
+
+      const res = await discoveryApi.createBookingRequest(
+        businessId,
+        payload,
+        `idemp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      );
+
+      setConfirmedBooking(res);
+    } catch (err) {
+      console.error('Failed to submit booking:', err);
+      alert('Failed to request booking. Please try again.');
+    } finally {
+      setSubmittingBooking(false);
+    }
+  };
+
+  const handleConfirmAddToTrip = async () => {
+    if (!targetTripId || !business) return;
+    try {
+      setAddingToTrip(true);
+      const { plan } = await tripsApi.getTravelPlan(targetTripId);
+      const nextDayNum = plan.itinerary.length + 1;
+
+      const newDay = {
+        dayNumber: nextDayNum,
+        theme: itineraryDayTheme || `Visit ${business.businessName}`,
+        morning: `Depart for ${business.businessName}`,
+        afternoon: `Experience local offerings and dining at ${business.businessName}`,
+        sunset: `Leisure time and sunset views around ${business.city}`,
+        accommodation: business.category === 'STAY' ? business.businessName : undefined,
+      };
+
+      const updated = [...plan.itinerary, newDay];
+      await tripsApi.updateTravelPlan(targetTripId, { itinerary: updated });
+
+      setAddedSuccess(true);
+      setTimeout(() => {
+        setAddedSuccess(false);
+        setAddToTripModalOpen(false);
+      }, 1800);
+    } catch (err) {
+      console.error('Failed to add to trip itinerary:', err);
+    } finally {
+      setAddingToTrip(false);
+    }
+  };
+
   if (loading) {
-    return <div className="max-w-7xl mx-auto p-6 animate-pulse bg-[var(--color-wakeru-surface-muted)] h-96 rounded-xl mt-8"></div>;
+    return (
+      <div className="max-w-7xl mx-auto p-6 animate-pulse bg-[var(--color-wakeru-surface-muted)] h-96 rounded-xl mt-8"></div>
+    );
   }
 
   if (!business) {
     return (
       <div className="max-w-7xl mx-auto p-6 text-center py-24">
         <h2 className="text-xl font-bold">Business not found</h2>
-        <p className="text-[var(--color-wakeru-text-secondary)] mt-2">The business you are looking for does not exist or has been removed.</p>
+        <p className="text-[var(--color-wakeru-text-secondary)] mt-2">
+          The business you are looking for does not exist or has been removed.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-8">
+    <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-8">
+      {/* Top Breadcrumb */}
+      <div className="flex items-center justify-between">
+        <Link
+          href="/discover"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-wakeru-text-secondary)] hover:text-[var(--color-wakeru-primary)] transition-colors"
+        >
+          <AppIcon name="arrow-left" size={14} />
+          <span>Back to Discover</span>
+        </Link>
+        <span className="text-xs text-[var(--color-wakeru-text-tertiary)] uppercase tracking-wider font-bold">
+          Verified Destination
+        </span>
+      </div>
+
       {/* Header & Identity */}
       <header className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div>
@@ -68,9 +192,34 @@ export default function BusinessDetailClientPage() {
             <span>📍 {business.address}, {business.city}, {business.country}</span>
           </p>
         </div>
-        <div className="flex flex-row md:flex-col gap-2 shrink-0">
-          <Button size="lg" className="shadow-md">Request Booking</Button>
-          <Button variant="outline" size="sm">Report Issue</Button>
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap sm:flex-nowrap gap-2 shrink-0">
+          <Button
+            size="lg"
+            onClick={() => handleOpenBooking()}
+            className="shadow-md flex items-center gap-2"
+          >
+            <span>Request Booking</span>
+          </Button>
+
+          {myTrips.length > 0 && (
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => setAddToTripModalOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <AppIcon name="plane" size={16} />
+              <span>Add to Trip</span>
+            </Button>
+          )}
+
+          <Link href={`/discover/business/${businessId}/review`}>
+            <Button variant="ghost" size="lg" className="text-xs">
+              Write Review
+            </Button>
+          </Link>
         </div>
       </header>
 
@@ -87,7 +236,9 @@ export default function BusinessDetailClientPage() {
           {/* Available Services */}
           <section>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-[var(--color-wakeru-text-primary)]">Available Services & Offerings</h2>
+              <h2 className="text-2xl font-bold text-[var(--color-wakeru-text-primary)]">
+                Available Services &amp; Offerings
+              </h2>
               <span className="text-xs text-[var(--color-wakeru-text-secondary)] font-medium">
                 {services.length} option{services.length === 1 ? '' : 's'} available
               </span>
@@ -151,8 +302,12 @@ export default function BusinessDetailClientPage() {
                           <div className="text-xs text-[var(--color-wakeru-text-muted)] font-medium">
                             {s.priceUnit || 'per unit'}
                           </div>
-                          <Button size="sm" className="mt-2 text-xs">
-                            Select Option
+                          <Button
+                            size="sm"
+                            onClick={() => handleOpenBooking(s)}
+                            className="mt-2 text-xs"
+                          >
+                            Book This
                           </Button>
                         </div>
                       </CardContent>
@@ -168,7 +323,9 @@ export default function BusinessDetailClientPage() {
           {/* Luxury Location & Navigation Map Card */}
           <section>
             <div className="mb-4">
-              <h2 className="text-2xl font-bold text-[var(--color-wakeru-text-primary)]">Venue Location & Arrival</h2>
+              <h2 className="text-2xl font-bold text-[var(--color-wakeru-text-primary)]">
+                Venue Location &amp; Arrival
+              </h2>
               <p className="text-sm text-[var(--color-wakeru-text-secondary)]">
                 Interactive navigation map, direct GPS coordinates, and arrival directions.
               </p>
@@ -191,7 +348,17 @@ export default function BusinessDetailClientPage() {
 
           {/* Reviews */}
           <section>
-            <h2 className="text-2xl font-bold mb-4 text-[var(--color-wakeru-text-primary)]">Traveler Reviews</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-[var(--color-wakeru-text-primary)]">
+                Traveler Reviews
+              </h2>
+              <Link href={`/discover/business/${businessId}/review`}>
+                <span className="text-xs font-bold text-[var(--color-wakeru-primary)] hover:underline">
+                  + Add Your Review
+                </span>
+              </Link>
+            </div>
+
             {reviews.length > 0 ? (
               <div className="space-y-4">
                 {reviews.map(r => (
@@ -224,7 +391,7 @@ export default function BusinessDetailClientPage() {
         <div className="space-y-6">
           <Card className="sticky top-6">
             <CardHeader>
-              <CardTitle>Host & Trust Information</CardTitle>
+              <CardTitle>Host &amp; Trust Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <div className="flex items-center gap-3">
@@ -259,6 +426,215 @@ export default function BusinessDetailClientPage() {
           </Card>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* MODAL 1: REQUEST BOOKING MODAL */}
+      {/* ========================================================================= */}
+      <Modal
+        isOpen={bookingModalOpen}
+        onClose={() => setBookingModalOpen(false)}
+        title={confirmedBooking ? 'Booking Request Submitted!' : `Reserve at ${business.businessName}`}
+        description={
+          confirmedBooking
+            ? `Your booking code is ${confirmedBooking.bookingReference}. The host has been notified.`
+            : 'Fill in your arrival date and preferences to request confirmation.'
+        }
+        maxWidth="md"
+        footer={
+          confirmedBooking ? (
+            <div className="flex items-center justify-between w-full">
+              <Link href="/bookings">
+                <Button variant="primary">View My Bookings</Button>
+              </Link>
+              <Button variant="ghost" onClick={() => setBookingModalOpen(false)}>
+                Done
+              </Button>
+            </div>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={() => setBookingModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                isLoading={submittingBooking}
+                onClick={handleSubmitBooking}
+              >
+                Submit Booking Request
+              </Button>
+            </>
+          )
+        }
+      >
+        {confirmedBooking ? (
+          <div className="text-center py-6 space-y-4">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center mx-auto text-3xl">
+              ✓
+            </div>
+            <div>
+              <div className="text-xs uppercase font-bold text-[var(--color-wakeru-text-secondary)]">
+                Booking Reference Code
+              </div>
+              <div className="text-2xl font-mono font-black text-amber-500 tracking-wider mt-1">
+                {confirmedBooking.bookingReference}
+              </div>
+            </div>
+            <div className="p-4 rounded-xl bg-[var(--color-wakeru-surface-muted)] text-xs text-[var(--color-wakeru-text-secondary)]">
+              🛡️ Cached in your offline vault. You will receive real-time notification once the host accepts.
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmitBooking} className="space-y-4 text-xs">
+            {selectedService && (
+              <div className="p-3.5 rounded-xl bg-[var(--color-wakeru-surface-muted)] border border-[var(--color-wakeru-border)] flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-sm text-[var(--color-wakeru-text-primary)] block">
+                    {selectedService.serviceName || selectedService.name}
+                  </span>
+                  <span className="text-xs text-[var(--color-wakeru-text-secondary)]">
+                    {selectedService.serviceType || 'Standard offering'}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-black font-mono text-[var(--color-wakeru-primary)]">
+                    ₹{((selectedService.basePriceMinor ?? selectedService.priceMinor ?? 0) / 100).toFixed(2)}
+                  </span>
+                  <span className="text-[10px] text-[var(--color-wakeru-text-tertiary)] block">
+                    {selectedService.priceUnit || 'per unit'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-[var(--color-wakeru-text-primary)] mb-1">
+                  Reservation Date
+                </label>
+                <input
+                  type="date"
+                  value={bookingDate}
+                  onChange={e => setBookingDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-[var(--color-wakeru-surface-muted)] border border-[var(--color-wakeru-border-strong)] rounded text-xs"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-[var(--color-wakeru-text-primary)] mb-1">
+                  Guests / Party Size
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={guestsCount}
+                  onChange={e => setGuestsCount(Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-[var(--color-wakeru-surface-muted)] border border-[var(--color-wakeru-border-strong)] rounded text-xs font-mono font-bold"
+                  required
+                />
+              </div>
+            </div>
+
+            {myTrips.length > 0 && (
+              <div>
+                <label className="block font-bold text-[var(--color-wakeru-text-primary)] mb-1">
+                  Link to Trip (Optional)
+                </label>
+                <select
+                  value={selectedTripId}
+                  onChange={e => setSelectedTripId(e.target.value)}
+                  className="w-full px-3 py-2 bg-[var(--color-wakeru-surface-muted)] border border-[var(--color-wakeru-border-strong)] rounded text-xs font-medium"
+                >
+                  <option value="">Independent Reservation (No Trip)</option>
+                  {myTrips.map(t => (
+                    <option key={t._id || t.id} value={t._id || t.id}>
+                      {t.emoji} {t.title} ({t.destination})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-[var(--color-wakeru-text-tertiary)] mt-1">
+                  Linking automatically adds this venue to your group trip ledger.
+                </p>
+              </div>
+            )}
+
+            <div>
+              <label className="block font-bold text-[var(--color-wakeru-text-primary)] mb-1">
+                Special Requests / Notes to Host
+              </label>
+              <textarea
+                rows={2}
+                placeholder="e.g. Late check-in around 8 PM, high-floor quiet room preferred..."
+                value={bookingNotes}
+                onChange={e => setBookingNotes(e.target.value)}
+                className="w-full px-3 py-2 bg-[var(--color-wakeru-surface-muted)] border border-[var(--color-wakeru-border-strong)] rounded text-xs"
+              />
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODAL 2: ADD TO TRIP ITINERARY MODAL */}
+      {/* ========================================================================= */}
+      <Modal
+        isOpen={addToTripModalOpen}
+        onClose={() => setAddToTripModalOpen(false)}
+        title={`Add ${business.businessName} to Trip Itinerary`}
+        description="Choose which trip to integrate this venue into as a planned activity or stop."
+        maxWidth="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setAddToTripModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              isLoading={addingToTrip}
+              onClick={handleConfirmAddToTrip}
+            >
+              {addedSuccess ? '✓ Added to Itinerary!' : 'Confirm & Add to Trip'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-[var(--color-wakeru-text-primary)] mb-1.5">
+              Select Trip
+            </label>
+            <select
+              value={targetTripId}
+              onChange={e => setTargetTripId(e.target.value)}
+              className="w-full px-3 py-2.5 bg-[var(--color-wakeru-surface-muted)] border border-[var(--color-wakeru-border-strong)] rounded text-xs font-semibold"
+            >
+              {myTrips.map(t => (
+                <option key={t._id || t.id} value={t._id || t.id}>
+                  {t.emoji} {t.title} ({t.destination})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block font-bold text-[var(--color-wakeru-text-primary)] mb-1.5">
+              Itinerary Day Headline / Theme
+            </label>
+            <input
+              type="text"
+              placeholder={`e.g. Afternoon at ${business.businessName}`}
+              value={itineraryDayTheme}
+              onChange={e => setItineraryDayTheme(e.target.value)}
+              className="w-full px-3 py-2 bg-[var(--color-wakeru-surface-muted)] border border-[var(--color-wakeru-border-strong)] rounded text-xs font-medium"
+            />
+          </div>
+
+          <p className="text-[11px] text-[var(--color-wakeru-text-secondary)] bg-[var(--color-wakeru-surface-muted)] p-3 rounded-lg">
+            💡 This will append a new day and stop to your trip&apos;s collaborative schedule and sync with all companions.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

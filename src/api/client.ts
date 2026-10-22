@@ -15,13 +15,18 @@ interface RequestOptions extends RequestInit {
   idempotencyKey?: string;
 }
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1';
+export const getApiBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) return process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (typeof window !== 'undefined') return `${window.location.origin}/api/v1`;
+  return 'http://localhost:3000/api/v1';
+};
 
 export async function fetchClient<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { params, idempotencyKey, ...customConfig } = options;
   
   // Clean up params
-  const url = new URL(API_BASE_URL + endpoint);
+  const baseUrl = getApiBaseUrl();
+  const url = new URL(baseUrl + endpoint);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -37,7 +42,7 @@ export async function fetchClient<T>(endpoint: string, options: RequestOptions =
     headers.set('Idempotency-Key', idempotencyKey);
   }
 
-  // Handle Token (mocked for now, integrate with Auth provider)
+  // Handle Token (Bearer authentication)
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
@@ -59,9 +64,9 @@ export async function fetchClient<T>(endpoint: string, options: RequestOptions =
     }
     throw new APIError(
       response.status,
-      errorData.code || 'UNKNOWN_ERROR',
-      errorData.message || 'An error occurred during the request.',
-      errorData.details
+      errorData.code || errorData?.error?.code || 'UNKNOWN_ERROR',
+      errorData.message || errorData?.error?.message || 'An error occurred during the request.',
+      errorData.details || errorData?.error?.details
     );
   }
 
@@ -69,5 +74,18 @@ export async function fetchClient<T>(endpoint: string, options: RequestOptions =
     return {} as T;
   }
   
-  return response.json();
+  const json = await response.json();
+  if (json && typeof json === 'object' && 'success' in json) {
+    if (!json.success) {
+      throw new APIError(
+        response.status,
+        json.error?.code || 'API_ERROR',
+        json.error?.message || 'Request failed',
+        json.error?.details
+      );
+    }
+    return json.data !== undefined ? (json.data as T) : (json as T);
+  }
+
+  return json;
 }

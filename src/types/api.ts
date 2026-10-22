@@ -141,6 +141,18 @@ export interface BookingRequest {
   createdAt: string;
   businessName?: string;
   serviceName?: string;
+  rejectionReason?: string;
+  reason?: string;
+}
+
+export interface DigitalKey {
+  code: string;
+  pin?: string;
+  doorName?: string;
+  validUntil?: string;
+  wifiSsid?: string;
+  wifiPassword?: string;
+  bluetoothBeaconId?: string;
 }
 
 export interface Reservation {
@@ -162,6 +174,8 @@ export interface Reservation {
   status: 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
   vendorConfirmedAt: string;
   bookingDate?: string;
+  digitalKey?: DigitalKey;
+  cancellationReason?: string;
 }
 
 export interface Vendor {
